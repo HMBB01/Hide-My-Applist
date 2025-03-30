@@ -50,15 +50,28 @@ class HMAService(val pms: IPackageManager) : IHMAService.Stub() {
     }
 
     private fun searchDataDir() {
-        File("/data/misc/hide_my_applist").deleteRecursively()
         File("/data/system").list()?.forEach {
             if (it.startsWith("hide_my_applist")) {
-                if (this::dataDir.isInitialized) File("/data/system/$it").deleteRecursively()
-                else dataDir = "/data/system/$it"
+                if (!this::dataDir.isInitialized) {
+                    val newDir = File("/data/misc/$it")
+                    File("/data/system/$it").renameTo(newDir)
+                    dataDir = newDir.path
+                } else {
+                    File("/data/system/$it").deleteRecursively()
+                }
+            }
+        }
+        File("/data/misc").list()?.forEach {
+            if (it.startsWith("hide_my_applist")) {
+                if (!this::dataDir.isInitialized) {
+                    dataDir = "/data/misc/$it"
+                } else if (dataDir != "/data/misc/$it") {
+                    File("/data/misc/$it").deleteRecursively()
+                }
             }
         }
         if (!this::dataDir.isInitialized) {
-            dataDir = "/data/system/hide_my_applist_" + Utils.generateRandomString(16)
+            dataDir = "/data/misc/hide_my_applist_" + Utils.generateRandomString(16)
         }
 
         File("$dataDir/log").mkdirs()
@@ -105,14 +118,14 @@ class HMAService(val pms: IPackageManager) : IHMAService.Stub() {
             if (it.flags and ApplicationInfo.FLAG_SYSTEM != 0) it.packageName else null
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            frameworkHooks.add(PmsHookTarget34(this))
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             frameworkHooks.add(PmsHookTarget33(this))
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             frameworkHooks.add(PmsHookTarget30(this))
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            frameworkHooks.add(PmsHookTarget28(this))
         } else {
-            frameworkHooks.add(PmsHookLegacy(this))
+            frameworkHooks.add(PmsHookTarget28(this))
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
